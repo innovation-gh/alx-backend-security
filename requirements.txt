@@ -1,0 +1,152 @@
+# requirements.txt
+Django>=4.2.0
+django-ratelimit>=4.1.0
+redis>=4.5.0
+django-redis>=5.2.0
+celery>=5.3.0
+requests>=2.31.0
+
+# Setup Instructions
+
+## 1. Installation
+
+# Install required packages
+pip install -r requirements.txt
+
+# Install Redis (for caching and Celery)
+# Ubuntu/Debian:
+sudo apt-get install redis-server
+
+# macOS:
+brew install redis
+
+# Windows: Download from https://redis.io/download
+
+## 2. Django Setup
+
+# Add ip_tracking to INSTALLED_APPS in settings.py
+# Configure middleware, cache, and Celery settings (see settings.py artifact)
+
+# Create and run migrations
+python manage.py makemigrations ip_tracking
+python manage.py migrate
+
+# Create cache table (if using database cache instead of Redis)
+python manage.py createcachetable
+
+# Create superuser for admin access
+python manage.py createsuperuser
+
+## 3. Redis Setup
+
+# Start Redis server
+redis-server
+
+# Test Redis connection
+redis-cli ping
+# Should return: PONG
+
+## 4. Celery Setup
+
+# Start Celery worker (in separate terminal)
+celery -A your_project_name worker --loglevel=info
+
+# Start Celery Beat scheduler (in another terminal)
+celery -A your_project_name beat --loglevel=info
+
+# For production, use systemd services or supervisor
+
+## 5. Usage Examples
+
+# Block an IP address
+python manage.py block_ip block --ip 192.168.1.100 --reason "Suspicious activity"
+
+# Block multiple IPs from file
+python manage.py block_ip block --file blocked_ips.txt
+
+# Unblock an IP
+python manage.py block_ip unblock --ip 192.168.1.100
+
+# List all blocked IPs
+python manage.py block_ip list
+
+# Example blocked_ips.txt file:
+# 192.168.1.100
+# 10.0.0.50
+# # This is a comment
+# 203.0.113.10
+
+## 6. Testing Rate Limiting
+
+# Test anonymous rate limit (5 requests/minute)
+curl -X POST http://localhost:8000/ip_tracking/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "test", "password": "test"}'
+
+# Repeat the above command rapidly to trigger rate limiting
+
+## 7. Monitoring
+
+# Check logs
+tail -f logs/ip_tracking.log
+tail -f logs/security.log
+
+# Access admin panel
+http://localhost:8000/admin/
+
+# View dashboard
+http://localhost:8000/ip_tracking/dashboard/
+
+# API stats endpoint
+http://localhost:8000/ip_tracking/api/stats/
+
+## 8. Celery Tasks
+
+# The following tasks run automatically:
+# - detect_suspicious_ips: Every hour
+# - auto_block_persistent_suspicious_ips: Daily at 2 AM
+# - cleanup_old_logs: Daily at 3 AM
+# - generate_security_report: Daily at 8 AM
+
+# Run tasks manually:
+python manage.py shell
+>>> from ip_tracking.tasks import detect_suspicious_ips
+>>> detect_suspicious_ips.delay()
+
+## 9. Production Considerations
+
+# Use environment variables for sensitive settings
+# Set up proper logging rotation
+# Configure Redis persistence
+# Use a process manager for Celery (systemd, supervisor)
+# Set up monitoring and alerting
+# Consider using nginx for rate limiting at the web server level
+# Implement proper backup strategies for the database
+
+## 10. Security Notes
+
+# The middleware logs all requests - ensure compliance with privacy laws
+# Geolocation API calls may be subject to rate limits
+# Consider implementing CAPTCHA for repeated failed login attempts
+# Monitor disk space for log files
+# Regularly review and clean up old blocked IPs
+# Set up alerts for high numbers of suspicious IPs
+
+## 11. Troubleshooting
+
+# If rate limiting isn't working:
+# - Check RATELIMIT_ENABLE in settings
+# - Verify cache is working: python manage.py shell -> from django.core.cache import cache; cache.set('test', 'value'); cache.get('test')
+# - Check middleware order in MIDDLEWARE setting
+
+# If geolocation isn't working:
+# - Check internet connectivity
+# - Verify API endpoint is accessible
+# - Check logs for geolocation errors
+# - Consider using alternative geolocation services
+
+# If Celery tasks aren't running:
+# - Check Celery worker and beat processes are running
+# - Verify Redis connection
+# - Check task logs for errors
+# - Ensure timezone settings are correct
